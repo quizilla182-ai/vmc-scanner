@@ -26,7 +26,7 @@ def calculate_wavetrend(df, channel_len=9, avg_len=12):
 def detect_green_circle(df):
     wt1, wt2 = calculate_wavetrend(df)
     cross_up = (wt1.shift(1) < wt2.shift(1)) & (wt1 > wt2)
-    oversold = wt2 < 100
+    oversold = wt2 < -60
     return cross_up & oversold, wt1, wt2
 
 def get_crypto_data(symbol, limit=100):
