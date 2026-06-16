@@ -76,6 +76,7 @@ def format_message(symbol, asset_type, wt1_val, wt2_val, close_price):
             f"🕐 <b>เวลา   :</b> {now}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ <i>วิเคราะห์เพิ่มเติมก่อนตัดสินใจ</i>")
+
 def scan_btc_4h():
     print("🔍 Scan BTC 4H...")
     url = "https://api.binance.com/api/v3/klines"
@@ -132,4 +133,3 @@ def scan_all():
 
 scan_all()
 scan_btc_4h()
-
