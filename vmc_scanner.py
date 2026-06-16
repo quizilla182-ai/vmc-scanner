@@ -76,6 +76,36 @@ def format_message(symbol, asset_type, wt1_val, wt2_val, close_price):
             f"🕐 <b>เวลา   :</b> {now}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ <i>วิเคราะห์เพิ่มเติมก่อนตัดสินใจ</i>")
+def scan_btc_4h():
+    print("🔍 Scan BTC 4H...")
+    url = "https://api.binance.com/api/v3/klines"
+    params = {"symbol": "BTCUSDT", "interval": "4h", "limit": 100}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+        df = pd.DataFrame(data, columns=['time','open','high','low','close','volume','close_time','quote_vol','trades','taker_buy_base','taker_buy_quote','ignore'])
+        for col in ['open','high','low','close']:
+            df[col] = df[col].astype(float)
+        green, wt1, wt2 = detect_green_circle(df)
+        if green.iloc[-2]:
+            now = datetime.now().strftime("%d/%m/%Y %H:%M")
+            msg = (f"🟢 <b>VMC Cipher B — Green Circle (BUY)</b>\n"
+                   f"━━━━━━━━━━━━━━━━━━━\n"
+                   f"🪙 <b>Symbol :</b> BTCUSDT\n"
+                   f"📊 <b>Type   :</b> CRYPTO\n"
+                   f"⏱️ <b>TF     :</b> 4H\n"
+                   f"💰 <b>ราคา   :</b> {df['close'].iloc[-2]:,.4f}\n"
+                   f"〰️ <b>WT1    :</b> {wt1.iloc[-2]:.2f}\n"
+                   f"〰️ <b>WT2    :</b> {wt2.iloc[-2]:.2f}\n"
+                   f"🕐 <b>เวลา   :</b> {now}\n"
+                   f"━━━━━━━━━━━━━━━━━━━\n"
+                   f"⚠️ <i>วิเคราะห์เพิ่มเติมก่อนตัดสินใจ</i>")
+            send_telegram(msg)
+            print("🟢 พบสัญญาณ BTC 4H!")
+        else:
+            print(f"⬜ ไม่มีสัญญาณ BTC 4H  WT2={wt2.iloc[-2]:.1f}")
+    except Exception as e:
+        print(f"❌ Error BTC 4H: {e}")
 
 def scan_all():
     print(f"🔍 เริ่ม scan {datetime.now()}")
@@ -101,3 +131,5 @@ def scan_all():
     print(f"✅ เสร็จ พบ {signals_found} สัญญาณ")
 
 scan_all()
+scan_btc_4h()
+
