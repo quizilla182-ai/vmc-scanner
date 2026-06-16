@@ -1,11 +1,14 @@
+import os
+import re
 import requests
 import pandas as pd
 import numpy as np
 import time
 from datetime import datetime
 
-TELEGRAM_BOT_TOKEN = "8820625591:AAHAbkptEQEeC0Z10s14YepK0x1qvYqn2aM"
-TELEGRAM_CHAT_ID   = "961895833"
+TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_TOKEN"]
+TELEGRAM_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
+GEMINI_API_KEY     = os.environ["GEMINI_API_KEY"]
 
 CRYPTO_SYMBOLS = ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]
 STOCK_SYMBOLS  = ["KTOS","AEHR","AMSC","IPWR"]
@@ -53,6 +56,30 @@ def get_stock_data(symbol):
     except:
         return None
 
+def get_news_summary(symbol):
+    try:
+        keyword = symbol.replace("USDT", "")
+        rss_url = f"https://news.google.com/rss/search?q={keyword}&hl=th&gl=TH&ceid=TH:th"
+        r = requests.get(rss_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        titles = re.findall(r'<title>(.*?)</title>', r.text)[2:6]
+        headlines = [re.sub(r'<[^>]+>', '', t) for t in titles]
+        if not headlines:
+            return "ไม่พบข่าวล่าสุด"
+        news_text = "\n".join(headlines)
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        prompt = f"""สรุปข่าวต่อไปนี้เกี่ยวกับ {keyword} เป็นภาษาไทย 2-3 ประโยคสั้นๆ เข้าใจง่าย บอกสาเหตุที่ราคาขึ้นหรือลง:
+
+{news_text}
+
+ตอบเป็นภาษาไทยเท่านั้น ไม่ต้องมีหัวข้อ ตอบสั้นๆ กระชับ"""
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        g = requests.post(gemini_url, json=payload, timeout=15)
+        result = g.json()
+        return result['candidates'][0]['content']['parts'][0]['text'].strip()
+    except Exception as e:
+        print(f"❌ ดึงข่าวไม่ได้: {e}")
+        return "ไม่สามารถดึงข่าวได้ในขณะนี้"
+
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
@@ -62,18 +89,21 @@ def send_telegram(message):
     except Exception as e:
         print(f"❌ ส่งไม่ได้: {e}")
 
-def format_message(symbol, asset_type, wt1_val, wt2_val, close_price):
+def format_message(symbol, asset_type, wt1_val, wt2_val, close_price, tf="Daily (1D)"):
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     emoji = "🪙" if asset_type == "CRYPTO" else "📈"
+    news = get_news_summary(symbol)
     return (f"🟢 <b>VMC Cipher B — Green Circle (BUY)</b>\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"{emoji} <b>Symbol :</b> {symbol}\n"
             f"📊 <b>Type   :</b> {asset_type}\n"
-            f"⏱️ <b>TF     :</b> Daily (1D)\n"
+            f"⏱️ <b>TF     :</b> {tf}\n"
             f"💰 <b>ราคา   :</b> {close_price:,.4f}\n"
             f"〰️ <b>WT1    :</b> {wt1_val:.2f}\n"
             f"〰️ <b>WT2    :</b> {wt2_val:.2f}\n"
             f"🕐 <b>เวลา   :</b> {now}\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"📰 <b>สรุปข่าว:</b>\n{news}\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ <i>วิเคราะห์เพิ่มเติมก่อนตัดสินใจ</i>")
 
@@ -89,19 +119,7 @@ def scan_btc_4h():
             df[col] = df[col].astype(float)
         green, wt1, wt2 = detect_green_circle(df)
         if green.iloc[-2]:
-            now = datetime.now().strftime("%d/%m/%Y %H:%M")
-            msg = (f"🟢 <b>VMC Cipher B — Green Circle (BUY)</b>\n"
-                   f"━━━━━━━━━━━━━━━━━━━\n"
-                   f"🪙 <b>Symbol :</b> BTCUSDT\n"
-                   f"📊 <b>Type   :</b> CRYPTO\n"
-                   f"⏱️ <b>TF     :</b> 4H\n"
-                   f"💰 <b>ราคา   :</b> {df['close'].iloc[-2]:,.4f}\n"
-                   f"〰️ <b>WT1    :</b> {wt1.iloc[-2]:.2f}\n"
-                   f"〰️ <b>WT2    :</b> {wt2.iloc[-2]:.2f}\n"
-                   f"🕐 <b>เวลา   :</b> {now}\n"
-                   f"━━━━━━━━━━━━━━━━━━━\n"
-                   f"⚠️ <i>วิเคราะห์เพิ่มเติมก่อนตัดสินใจ</i>")
-            send_telegram(msg)
+            send_telegram(format_message("BTCUSDT", "CRYPTO", wt1.iloc[-2], wt2.iloc[-2], df['close'].iloc[-2], "4H"))
             print("🟢 พบสัญญาณ BTC 4H!")
         else:
             print(f"⬜ ไม่มีสัญญาณ BTC 4H  WT2={wt2.iloc[-2]:.1f}")
