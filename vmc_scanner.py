@@ -11,7 +11,7 @@ TELEGRAM_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 GEMINI_API_KEY     = os.environ["GEMINI_API_KEY"]
 
 CRYPTO_SYMBOLS = ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]
-STOCK_SYMBOLS  = ["KTOS","AEHR","AMSC","IPWR" ,"ONTO",ASTS"]
+STOCK_SYMBOLS  = ["KTOS","AEHR","AMSC","IPWR" ,"ONTO","ASTS"]
 
 def calculate_wavetrend(df, channel_len=9, avg_len=12):
     src = (df['high'] + df['low'] + df['close']) / 3
