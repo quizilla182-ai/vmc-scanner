@@ -57,13 +57,9 @@ def get_stock_data(symbol):
         return None
 
 def analyze_smart_money(df):
-    """วิเคราะห์ Smart Money จาก Volume, OBV, CVD"""
-    # Volume analysis
     vol_avg = df['volume'].rolling(20).mean()
     vol_ratio = df['volume'].iloc[-2] / vol_avg.iloc[-2]
     volume_signal = "🔥 สูงผิดปกติ" if vol_ratio > 2 else "📈 สูงกว่าปกติ" if vol_ratio > 1.5 else "😐 ปกติ"
-
-    # OBV
     obv = []
     obv_val = 0
     for i in range(len(df)):
@@ -77,28 +73,17 @@ def analyze_smart_money(df):
         obv.append(obv_val)
     obv_series = pd.Series(obv)
     obv_trend = "🟢 ไหลเข้า" if obv_series.iloc[-2] > obv_series.iloc[-5] else "🔴 ไหลออก"
-
-    # CVD (Cumulative Volume Delta)
     buy_vol = df['taker_buy_base'].iloc[-2] if 'taker_buy_base' in df.columns else df['volume'].iloc[-2] * 0.5
     sell_vol = df['volume'].iloc[-2] - buy_vol
     cvd = buy_vol - sell_vol
     cvd_signal = "🟢 แรงซื้อมากกว่า" if cvd > 0 else "🔴 แรงขายมากกว่า"
-
-    # Risk assessment
     if vol_ratio > 2 and obv_trend.startswith("🟢") and cvd > 0:
         risk = "🟢 ต่ำ"
     elif vol_ratio > 1.5 or (obv_trend.startswith("🟢") and cvd > 0):
         risk = "🟡 กลาง"
     else:
         risk = "🔴 สูง"
-
-    return {
-        "volume_signal": volume_signal,
-        "vol_ratio": vol_ratio,
-        "obv_trend": obv_trend,
-        "cvd_signal": cvd_signal,
-        "risk": risk
-    }
+    return {"volume_signal": volume_signal, "vol_ratio": vol_ratio, "obv_trend": obv_trend, "cvd_signal": cvd_signal, "risk": risk}
 
 def get_news_summary(symbol):
     try:
@@ -160,12 +145,14 @@ def format_message(symbol, asset_type, wt1_val, wt2_val, close_price, tf="Daily 
     return msg
 
 def scan_crypto_1h():
-    """Scan คริปโตทุกตัว TF 1H พร้อม Smart Money"""
     print("🔍 Scan Crypto 1H + Smart Money...")
     for symbol in CRYPTO_SYMBOLS:
         df = get_crypto_data(symbol, interval="1h", limit=150)
-        if df is None or len(df) < 30: continue
+        if df is None or len(df) < 30:
+            continue
         green, wt1, wt2 = detect_green_circle(df)
+        if len(green) < 2:
+            continue
         if green.iloc[-2]:
             smart = analyze_smart_money(df)
             send_telegram(format_message(symbol, "CRYPTO", wt1.iloc[-2], wt2.iloc[-2], df['close'].iloc[-2], "1H", smart))
@@ -177,8 +164,13 @@ def scan_crypto_1h():
 def scan_btc_4h():
     print("🔍 Scan BTC 4H...")
     df = get_crypto_data("BTCUSDT", interval="4h", limit=100)
-    if df is None: return
+    if df is None or len(df) < 30:
+        print("❌ ข้อมูล BTC 4H ไม่พอ")
+        return
     green, wt1, wt2 = detect_green_circle(df)
+    if len(green) < 2:
+        print("❌ สัญญาณ BTC 4H ไม่พอ")
+        return
     if green.iloc[-2]:
         smart = analyze_smart_money(df)
         send_telegram(format_message("BTCUSDT", "CRYPTO", wt1.iloc[-2], wt2.iloc[-2], df['close'].iloc[-2], "4H", smart))
@@ -191,16 +183,22 @@ def scan_all():
     signals_found = 0
     for symbol in CRYPTO_SYMBOLS:
         df = get_crypto_data(symbol, interval="1d", limit=100)
-        if df is None or len(df) < 30: continue
+        if df is None or len(df) < 30:
+            continue
         green, wt1, wt2 = detect_green_circle(df)
+        if len(green) < 2:
+            continue
         if green.iloc[-2]:
             send_telegram(format_message(symbol, "CRYPTO", wt1.iloc[-2], wt2.iloc[-2], df['close'].iloc[-2]))
             signals_found += 1
         time.sleep(0.3)
     for symbol in STOCK_SYMBOLS:
         df = get_stock_data(symbol)
-        if df is None or len(df) < 30: continue
+        if df is None or len(df) < 30:
+            continue
         green, wt1, wt2 = detect_green_circle(df)
+        if len(green) < 2:
+            continue
         if green.iloc[-2]:
             send_telegram(format_message(symbol, "STOCK US", wt1.iloc[-2], wt2.iloc[-2], df['close'].iloc[-2]))
             signals_found += 1
